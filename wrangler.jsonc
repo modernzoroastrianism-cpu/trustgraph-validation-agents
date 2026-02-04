@@ -1,0 +1,62 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "validation-agents",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-01-31",
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"directory": "./public"
+	},
+	"observability": {
+		"enabled": true
+	},
+
+	"durable_objects": {
+		"bindings": [
+			{ "name": "CONSISTENCY_AGENT", "class_name": "ConsistencyAgent" },
+			{ "name": "SOURCE_AGENT", "class_name": "SourceVerificationAgent" },
+			{ "name": "TEMPORAL_AGENT", "class_name": "TemporalLogicAgent" },
+			{ "name": "MATH_AGENT", "class_name": "MathematicalProofAgent" },
+			{ "name": "DRIFT_AGENT", "class_name": "SemanticDriftAgent" }
+		]
+	},
+
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"ConsistencyAgent",
+				"SourceVerificationAgent",
+				"TemporalLogicAgent",
+				"MathematicalProofAgent",
+				"SemanticDriftAgent"
+			]
+		}
+	],
+
+	"d1_databases": [
+		{
+			"binding": "TRUST_DB",
+			"database_name": "trustgraph",
+			"database_id": "13a41081-d86c-42ac-8490-73b3c0840ff5"
+		}
+	],
+
+	"vectorize": [
+		{
+			"binding": "EMBEDDINGS",
+			"index_name": "intent-embeddings"
+		}
+	],
+
+	"kv_namespaces": [
+		{
+			"binding": "INTENT_CACHE",
+			"id": "4444212a3ef24f66872834995ac9a320"
+		}
+	],
+
+	"ai": {
+		"binding": "AI"
+	}
+}
