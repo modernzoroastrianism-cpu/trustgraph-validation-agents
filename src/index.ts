@@ -14,6 +14,7 @@ import { SourceVerificationAgent } from './agents/source';
 import { TemporalLogicAgent } from './agents/temporal';
 import { MathematicalProofAgent } from './agents/math';
 import { SemanticDriftAgent } from './agents/drift';
+import { authenticate } from './middleware/auth';
 
 export { 
 	ConsistencyAgent, 
@@ -33,10 +34,32 @@ export interface Env {
 	EMBEDDINGS: VectorizeIndex;
 	INTENT_CACHE: KVNamespace;
 	AI: Ai;
+	API_KEY: string;
 }
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		// CORS headers for browser access
+		const corsHeaders = {
+			'Access-Control-Allow-Origin': '*',
+			'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+			'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+		};
+		
+		// Handle preflight
+		if (request.method === 'OPTIONS') {
+			return new Response(null, { headers: corsHeaders });
+		}
+		
+		// Authenticate API requests
+		const authError = authenticate(request, env);
+		if (authError) {
+			return new Response(authError.body, {
+				status: authError.status,
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+			});
+		}
+		
 		const url = new URL(request.url);
 		
 		// Route to appropriate agent
@@ -114,21 +137,23 @@ async function handleIntent(request: Request, env: Env): Promise<Response> {
 	const { text } = body;
 	
 	// Generate embedding via Workers AI
-	const embedding = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
+	const embeddingResult = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
 		text: [text]
-	});
+	}) as { data: number[][] };
+	
+	const embeddingVector = embeddingResult.data[0];
 	
 	// Store in Vectorize
 	const intentId = crypto.randomUUID();
 	await env.EMBEDDINGS.upsert([{
 		id: intentId,
-		values: embedding.data[0],
+		values: embeddingVector,
 		metadata: { text, timestamp: Date.now() }
 	}]);
 	
 	// Hash the intent (SHA-256 of embedding)
 	const hashBuffer = await crypto.subtle.digest('SHA-256', 
-		new TextEncoder().encode(JSON.stringify(embedding.data[0]))
+		new TextEncoder().encode(JSON.stringify(embeddingVector))
 	);
 	const intentHash = Array.from(new Uint8Array(hashBuffer))
 		.map(b => b.toString(16).padStart(2, '0'))
@@ -137,7 +162,7 @@ async function handleIntent(request: Request, env: Env): Promise<Response> {
 	return new Response(JSON.stringify({
 		intentId,
 		intentHash,
-		embedding: embedding.data[0].slice(0, 5) // First 5 dims for preview
+		embedding: embeddingVector.slice(0, 5) // First 5 dims for preview
 	}), {
 		headers: { 'Content-Type': 'application/json' }
 	});
